@@ -1,0 +1,399 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumerate}
+\usepackage{bm}
+\usepackage{amsmath}
+\usepackage{url} 
+\usepackage{float}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{placeins}
+\usepackage{bbm}
+\usepackage[usenames,dvipsnames]{xcolor}
+
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{Amy LaLonde}
+\rhead{Fall 2016}
+\lfoot{SCDS - MCMC Results}
+\rfoot{20 outcomes - 7 Fixed Domains}
+\cfoot{\thepage}
+\begin{document}
+<<setup1, echo=FALSE,eval=FALSE>>=
+opts_chunk$set(fig.show="hold",fig.pos='h')
+options(width=80, dev='png')  # make the printing fit on the page
+rm(list=ls())
+
+source('~/PlottingFunctions.R')
+load(file="fixedModelDraws.Rda")
+clust1 <- fixedrun1 
+rm(fixedrun1)
+
+dat1 <- read.table('/projects/32885/sey2/Main/9Years/Amy/sasdata/missx.txt')
+library(knitr)
+library(xtable)
+library(coda)
+library(mcmcse)
+@
+
+\title{Summary of MCMC Results: Fixed Domain Model\vspace{-1.2cm}}
+\date{\today}
+\maketitle
+<<setup2, echo=FALSE>>=
+# ------------ Initial Settings: 
+niter <- length(clust1$betaf.draws)
+nburn = 5e3
+
+## -- 20 Outcomes (from Thurston et al. 2009 paper):
+nouts <- J <- 20 
+n <- nrow(dat1)
+outsin09domains <- list(cognition=c('M8VERBIQ','M8PERFIQ','M8NOCUE'), 
+                        memory=c('nnlog_m8rhitss','M8M5SS','M8SHRTSS','M8LONGSS','M8DSSC','M8WRMLSS'),
+                        motor=c('nlog_m8domsec','nlog_m8nonsec','M8DOMAVG','M8NONAVG','nlog_m8ttimea','nlog_m8ttimeb','TOT_ST','M8VMISS'),
+                        behavior=c('M8INT_T','M8EX_T','nlog_m8trt4') )
+outnamesin09domains <- list(cognition=c('WISCverbalIQ','WISCperfIQ','BNTnocue'), 
+                        memory=c('CVLTrec','CVLTimmed','CVLTshort','CVLTlong','WISCRdigit','WRAMLdesign'),
+                        motor=c('GroovDom','GroovNondom','FTapDom','FTapNondom','TrailA','TrailB','BruinOs','Beery'),
+                        behavior=c('CBCLintT','CBCLextT','CTRShyper') )
+
+outsin09domains2 <- lapply( outsin09domains, function(x) gsub('_','',x ))
+outcome.varnames <- unlist(outsin09domains)
+outcome.varnames2 <- unlist(outsin09domains2)
+outcomenames <- unlist(outnamesin09domains)
+
+pF <- 1 # no. of overall fixed effects covariates (MeHg exposure)
+pDF <- 6 # no. of covariates w/ domain specific fixed effects 
+         # sex, mother's age, HOME score (stimulation in home environment), KBIT (mother's IQ), 
+         # Hollingshead SES (paternal education and employment), and child's age at testing
+pD <- 1 # no. of covariates w/ domain-specific random effects
+pO <- 1 # no. of covariates w/ outcome-specific random effects
+
+exp.names <- 'MERC_S'
+cov.names <- c('CSEX','MAGE','HOME','KBIT_STD','M8HOLLSC','child_age')
+predictor.varnames <- c(exp.names, cov.names)
+## Center and Scale outcomes:
+predictorvars <- scale(dat1[,predictor.varnames])
+#head(predictorvars)
+
+## Center and Scale outcomes:
+outcomevars <- scale(dat1[,unlist(outsin09domains)])
+
+Y <- NULL
+for(j in 1:J){
+  Y <- c(Y, outcomevars[,unlist(outsin09domains)[j]])
+}
+Sf <- SD <- SO <- matrix(predictorvars[,'MERC_S'] , ncol=1)
+SDf <- predictorvars[,-which(colnames(predictorvars)=='MERC_S')]
+
+cat('We build a model on the following',J,'outcomes:')
+print(outcomenames)
+cat('to estimate the overall exposure effect of')
+print(exp.names)
+cat('controlling for the following covariates')
+print(cov.names)
+priors <- list(beta0f=rep(0,pF), SigInv.betaf=diag(.001,pF),beta0Df=rep(0,pDF), SigInv.betaDf=diag(.001,pDF), 
+               sig2.bO=c(0.5,0.00005), sig2.bD=c(0.5,0.00005), sig2.eps=c(0.5,0.0005),sig2.r=c(0.5,0.00005), 
+               sig2.rD=c(0.5,0.00005), alpha=1)
+cat('\n\nThe priors we use in this run are:')
+print(priors)
+@
+
+
+
+The following summarizes results of fitting the model presented in Thurston et al. (2009) with the outcomes nested into the domains resulting from my model's clustering within the model-fitting process. The arrangement of outcomes into domains is presented in the output below. We fit the 2009 model to the outcome arrangement shown here in order to explore some of the issues we came across in our model fit. Most pronounced is our issue of a lack of convergence observed in $\beta_\mathcal{F}$, the overall mercury effect. Since the clustering does not rearrange the outcomes after they settle into this arrangement, we can consider whether the 2009 model's assumption of domain-specific subject random effect variances differing across domains has a substantial impact on the model fit. All other aspects of the models are identical given a particular arrangement of outcomes into domains.Results show reasonable parameter estimates, and less concern over issue of convergence $\beta_\mathcal{F}$; however, there now appears to be an issue of a lack of convergence observed in the $\sigma_{r,\mathcal{D}}^2$ parameters.
+
+Let $\mathbf{y}_{\cdot j, d(j)}^{\ast} $ be the $n\times1$ vector of centered and scaled observations on the $j^{th}$ for all $n$ subjects, while $\mathbf{S}_{\mathcal{F}}, \mathbf{S}_{\mathcal{DF}}, \mathbf{S}_{\mathcal{D}},$ and $ \mathbf{S}_{\mathcal{O}}$ be the model's covariates with overall fixed effects, domain-specific fixed effects, domain-specific random effects, outcome-specific random effects, respectively, each of size $n\times p_{\mathcal{F}}$, $n\times p_{\mathcal{DF}}$, $n\times p_{\mathcal{D}}$, $n\times p_{\mathcal{O}}$. Thurston et al. (2009) proposed the following model to fit to the SCDS data.
+\begin{equation}
+\mathbf{y}_{\cdot j, d(j)}^{\ast} = \mathbf{S}_{\mathcal{F}}^{T}\boldsymbol{\beta}_{\mathcal{F}} + \mathbf{S}_{\mathcal{D},\mathcal{F}} \boldsymbol{\beta}_{\mathcal{D},\mathcal{F}, d(j)} + \mathbf{S}_{\mathcal{D}} \mathbf{b}_{\mathcal{D}, d(j)} + \mathbf{S}_{\mathcal{O}}\mathbf{b}_{\mathcal{O},j} + \mathbf{r} + \mathbf{r}_{\mathcal{D}, d(j)}+ \boldsymbol{\epsilon}_{\cdot j}
+\ \label{thurston}
+\end{equation}
+where $d(j)$ denotes the domain for the $j^{th}$ outcome, $\mathbf{r}$ denotes the overall random subject effects, and $\mathbf{r}_{\mathcal{D},d(j)}$ denotes the domain-specific random subject effects.
+<<echo=FALSE,results='markup'>>=
+### Choose the overall a posteriori clustering OR 
+domain.assns <- read.table('fixed_clust_all.txt')
+#    the estimate from those draws with Kpost (posterior estimate of # of groups) groups
+# domain.assns <- read.table('fixed_clust_Kpost.txt')
+
+print(by(outcomenames, INDICES = domain.assns, FUN = function(x) as.character(x)))
+@
+
+
+<<coeffparams, echo=FALSE>>=
+## -- Identify the iterations in which there were "Kpost" domains:
+Krows <- 1:(niter-nburn)
+niterK <- length(Krows)
+Kpost <- length(clust1$bD.draws[[1]])
+
+## -- Remove burnin from all coefficient parameters:
+bD.drawsMinusBurnin <- clust1$bD.draws[-(1:nburn)]
+betaf.drawsMinusBurnin <- clust1$betaf.draws[-c(1:nburn)] 
+betaDf.drawsMinusBurnin <- clust1$betaDf.draws[-c(1:nburn)] 
+bO.drawsMinusBurnin <- clust1$bO.draws[-c(1:nburn),]
+
+## -- Place the parameter draws into matrices, selecting only the MCMC draws with "Kpost" domains
+bDdrawsK <- unlist(lapply(seq_along(1:niterK), FUN=function(k) matrix(unlist(bD.drawsMinusBurnin[[Krows[k]]]),ncol=pD*Kpost)))
+bDdrawsKmat <- matrix(bDdrawsK,nrow=niterK,byrow=T)
+betaDfdrawsK <- unlist(lapply(seq_along(1:niterK), FUN=function(k) matrix(unlist(betaDf.drawsMinusBurnin[[Krows[k]]]),ncol=pDF*Kpost)))
+betaDfdrawsKmat <- matrix(betaDfdrawsK,nrow=niterK,byrow=T)
+colnames(betaDfdrawsKmat) <- rep(colnames(predictorvars[,-which(colnames(predictorvars)=='MERC_S')]),Kpost)
+
+## -- Place all coefficient parameter draws into 1 large matrix
+param.draws=cbind(betaf.drawsMinusBurnin[Krows],betaDfdrawsKmat, bDdrawsKmat, bO.drawsMinusBurnin[Krows,])
+colnames(param.draws) <- c('betaf',paste(paste('betaDf',seq(1,pDF),sep=''),rep(1:Kpost,each=pDF),sep='_'),paste(paste('bD',seq(1,pD),sep=''),rep(1:Kpost,each=pD),sep='_'),paste(paste('bO',seq(1,pO),sep=''),rep(1:J,each=pO),sep='_'))
+@
+
+
+<<echo=FALSE>>=
+##############  SD PARAMETERS
+## Remove Burn-in, create graph labels and then plot:
+parnames.eps <- apply(matrix(seq(1,J),ncol=J),2,function(j) prelabels(symbol='sigma[epsilon]',j,sq=FALSE) )
+parnames.bO <- apply(matrix(seq(1,pO),ncol=J),2,function(j) prelabels(symbol='sigma[bO]',j,sq=FALSE) )
+parnames.bD <- apply(matrix(seq(1,pD),ncol=J),2,function(j) prelabels(symbol='sigma[bD]',j,sq=FALSE) )
+parnames.rs <- c(paste('sigma[rD',1:Kpost,']',sep=''),'sigma[r]')
+
+sig2epsMinusBurnin <- clust1$sig2eps.draw[(nburn + 1):niter,]
+sig2bOMinusBurnin  <- clust1$sig2bO.draw[(nburn + 1):niter]
+sig2bDMinusBurnin  <- clust1$sig2bD.draw[(nburn + 1):niter]
+sig2rMinusBurnin <- clust1$sig2r.draws[(nburn + 1):niter]
+sig2rDMinusBurnin <- clust1$sig2rD.draws[(nburn + 1):niter,]
+
+results1 <- cbind(betaf.drawsMinusBurnin, bDdrawsKmat, sig2bDMinusBurnin, sig2bOMinusBurnin, sig2rMinusBurnin, sig2rDMinusBurnin, sig2epsMinusBurnin )
+
+results2 <- cbind(param.draws)
+@
+
+\vspace{-.5cm}
+
+\newpage
+
+
+
+<<echo=FALSE, results='asis'>>=
+summtables <- summarize.sims(results1, results2,  dom.assn=domain.assns, outvarnames=outcomenames,sig2rDeq=FALSE)
+
+print(xtable(summtables[[1]],parbox=.5,label="table1", caption="Posterior means (MeHg effects) or medians (SDs) and associated 95\\% posterior intervals for key parameters as applied to the SCDS presented in Thurston et al. (2009)."), include.rownames=F,sanitize.text.function = function(x) x)
+@
+\vspace{-.5cm}
+<<sig2eps1-10,echo=FALSE, results='asis', fig.align='center',fig.height=9 ,fig.cap='Outcomes specific residual variances ($\\sigma^2_\\epsilon$).'>>=
+plot.params(draws = sqrt(sig2epsMinusBurnin[Krows,1:10]),  par.name=parnames.eps[1:10], lim.y=c(0,1), plotcolors=domain.assns[1:10]+1)
+@
+\vspace{-.5cm}
+<<sig2eps11-20,echo=FALSE, results='asis', fig.align='center',fig.height=9 ,fig.cap='Outcomes specific residual variances ($\\sigma^2_\\epsilon$).'>>=
+plot.params(draws = sqrt(sig2epsMinusBurnin[Krows,11:20]),  par.name=parnames.eps[11:20], lim.y=c(0,1), plotcolors=domain.assns[11:20]+1)
+@
+
+\FloatBarrier
+
+\section{Comparing Outcomes and Domains}
+<<echo=FALSE, results='asis'>>=
+print(xtable(summtables[[2]],parbox=.5,label="table2", caption="Posterior median MeHg effects and associated standard errors and 95\\% posterior intervals for each of the 20 outcomes of the SCDS presented in Thurston et al. (2009)."), include.rownames=F,sanitize.text.function = function(x) x)
+@
+\FloatBarrier
+<<echo=FALSE>>=
+compareModel <- lapply(seq(1,J), function(j) summary( lm(outcomevars[,unlist(outsin09domains)[j]] ~ -1 + as.matrix(predictorvars ))))
+compareFull <- matrix(NA, nrow=J, ncol=21)
+colnames(compareFull) <- c('merc.est','sex.est','mage.est','HOME.est','KBITSS.est','HollSES.est','chage.est','merc.se','sex.se','mage.se','HOME.se','KBITSS.se','HollSES.se','chage.se','merc.p','sex.p','mage.p','HOME.p','KBITSS.p','HollSES.p','chage.p')
+rownames(compareFull) <- unlist(outsin09domains)
+for(j in 1:J){
+    fit.j <- lm(outcomevars[,unlist(outsin09domains)[j]] ~ -1 + as.matrix(predictorvars ))
+    compareFull[j,] <- matrix(summary(fit.j)$coeff[,c('Estimate','Std. Error','Pr(>|t|)')],nrow=1)
+}
+mercSEs <- compareFull[,2]
+mercEsts <- compareFull[,1]
+outlabels <- c(paste('y',seq(1,J),sep='_'))
+outcome.vec <- seq(1,J)
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=8, fig.cap='Comparing the estimated mercury effects from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+## col = 1:8
+orig.assn = c( rep(1,3), rep(2,6), rep(3,8), rep(4,3))
+outcomesindomain.plot(param.draws,nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Multiple Outcomes Model Results\n Mercury Effect', 'Separate Regressions Results\n Mercury Effect',.5), compareBoth=compareFull[,c('merc.est','merc.se')], xrange=c(-.15, .2), dom.assn = domain.assns, orig.assn=orig.assn)
+@
+
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for child\'s sex from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='CSEX'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\n Child\'s Sex', 'Coefficient from Separate Regressions for\n Child\'s Sex',.5), compareBoth=compareFull[,c('sex.est','sex.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for Mother\'s Age from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='MAGE'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\n Mother\'s Age', 'Coefficient from Separate Regressions for\n Mother\'s Age',.5), compareBoth=compareFull[,c('mage.est','mage.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for HOME Score from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='HOME'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\nHOME Score', 'Coefficient from Separate Regressions for\n HOME Score',.5), compareBoth=compareFull[,c('HOME.est','HOME.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for KBIT Score from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='KBIT_STD'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\n KBIT Score', 'Coefficient from Separate Regressions for\n KBIT Score',.5), compareBoth=compareFull[,c('KBITSS.est','KBITSS.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for Hollingshead SES from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='M8HOLLSC'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\nHollingshead SES', 'Coefficient from Separate Regressions for\n Hollingshead SES',.5), compareBoth=compareFull[,c('HollSES.est','HollSES.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=7.5, fig.cap='Comparing the estimated domain-specific fixed effects for Child\'s age from the multiple outcomes model (left) to the separate regressions.',out.width='1\\linewidth'>>=
+outcomesindomain.plot(param.draws=betaDfdrawsKmat[,colnames(betaDfdrawsKmat)=='child_age'],nexpos=1,ndoms=Kpost,nouts=J, legendloc=c("top",Kpost),longnames=NULL,outcomenames=outcomenames,domcolors=unique(domain.assns+1),legendsize=.8, plottitle=c('Domain-specific Fixed Effect\nChild\'s Age', 'Coefficient from Separate Regressions for\n Child\'s Age',.5), compareBoth=compareFull[,c('chage.est','chage.se')], xrange=c(-.3, .35), dom.assn = domain.assns, orig.assn=orig.assn, fixedEffect=TRUE)
+@
+
+
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=8, fig.cap='Comparing the estimated domain-specific fixed covariate effects for each of the six covariates across each of the posterior domains.',out.width='1\\linewidth'>>=
+covsbydomain.plot( param.draws=betaDfdrawsKmat, ndom=Kpost, covnames=predictor.varnames[-which(predictor.varnames=='MERC_S')], fullcovnames=c(expression(beta[DF]:~Sex~of~Child), expression(beta[DF]:~Age~of~Mother),  expression(beta[DF]:~HOME~Score), expression(beta[DF]:~K-BIT), expression(beta[DF]:~Hollingshead~SES), expression(beta[DF]:~Age~of~Child)), xrange = c(-.3,.3) )
+@
+\FloatBarrier
+
+\section{Assessing Convergence}
+\subsection{Variance Parameters}
+<<echo=FALSE, results='markup'>>=
+varparams <- cbind(sig2r=clust1$sig2r.draws, clust1$sig2rD.draws, sig2bO=clust1$sig2bO.draws, sig2bD=clust1$sig2bD.draws, clust1$sig2eps.draws)
+colnames(varparams) <- c('sig2r', paste('sig2rD',1:Kpost,sep = ''), 'sig2bO', 'sig2bD',paste('sig2eps',1:J,sep=''))
+cat('Multivariate ESS - Variance Parameters:')
+print(multiESS(varparams))
+@
+<<echo=FALSE, results='asis', fig.align='center', fig.height=5, out.width='\\linewidth'>>=
+par(mfrow=c(3,1))
+par(mar=c(2,2,1,1))
+plot.params(draws = sqrt(sig2bOMinusBurnin[Krows]),  par.name='sigma[bO]' , lim.y=c(0,.05))
+plot.params(draws = sqrt(sig2bDMinusBurnin[Krows]),  par.name='sigma[bD]' , lim.y=NULL)
+plot.params(draws = sqrt(clust1$sig2r.draws[(nburn + 1):niter]),  par.name=parnames.rs[Kpost+1], lim.y=c(0.2,0.5) )
+@
+<<echo=FALSE, results='asis', fig.align='center', fig.height=8, out.width='\\linewidth'>>=
+par(mar=c(2,2,1,1))
+plot.params(draws = sqrt(clust1$sig2rD.draws[(nburn + 1):niter,]),par.name=parnames.rs[1:Kpost], lim.y =c(0,1),plotdims = c(4,2), plotcolors = rep(1,Kpost))
+@
+\FloatBarrier
+\subsection{Coefficient Parameters}
+<<echo=FALSE, results='markup'>>=
+MeHg.coef <- matrix(NA, nrow=niter, ncol=J)
+for(t in 1:niter){
+  for( j in 1:J){
+    MeHg.coef[t,j] <- clust1$betaf.draws[t] + clust1$bO.draws[t,j] + clust1$bD.draws[[t]][[domain.assns[j]]]
+  }
+}
+cat('Multivariate ESS - Outcome-specific MeHg Parameters (sum):')
+print(multiESS(MeHg.coef))
+cat('Multivariate ESS - Domain-specific Fixed Effects Parameters (After Burnin):')
+print(multiESS(betaDfdrawsKmat))
+@
+<<echo=FALSE, results='asis', fig.align='center',fig.height=3,fig.cap='Traceplots for the overall MeHg effects ($\\beta_\\mathcal{F}$). The plot on top is the behavior over all iterations, while the plot on bottom is after excluding the burnin.'>>=
+par(mfrow=c(2,1))
+par(mar=c(2,2,1,1))
+plot(1:niter,clust1$betaf.draws, type='l',col='purple', main=expression(All~beta[f]~draws),xlab='',ylab='', ylim=c(-.2,.4),cex.axis=.6); abline(h=0,col='red',lwd=2)
+plot((nburn+1):niter,betaf.drawsMinusBurnin, type='l',col='purple', main=expression(After~Burnin~beta[f]~draws),xlab='',ylab='', ylim=c(-.2,.4),cex.axis=.6); abline(h=0,col='red',lwd=2)
+@
+
+<<echo=FALSE, results='asis', fig.align='center', fig.height=2.5, out.width='\\linewidth'>>=
+par(mfrow=c(1,2),mar=c(2,2,2,2))
+for(j in 1:J){
+  plot((nburn+1):niter, MeHg.coef[(nburn+1):niter,j], type='l', main=outcomenames[j], col=domain.assns[j]+1,xlab='',ylab='',ylim=c(-.2,.4),cex.main=.8,cex.axis=.6)
+  text(.75*niter, .28, paste('Domain',domain.assns[j]),cex = .8)
+  text(.75*niter, .35, expression(beta[f]+b[D]+b[O]),cex = .8)
+  abline(h=0, col='black')
+} 
+@
+\FloatBarrier
+
+<<echo=FALSE, results='markup'>>=
+sumbfbd <- bDdrawsKmat + betaf.drawsMinusBurnin
+colnames(sumbfbd) <- paste('betaf+bD',1:Kpost,sep='_')
+@
+
+<<echo=FALSE, results='asis', fig.align='center',fig.height=6,fig.cap='Traceplots for the sum of the overall MeHg effect with each of the domain-specific MeHg effects ($\\beta_\\mathcal{F} + b_\\mathcal{D}$). The plot on top is the behavior over all iterations, while the plot on bottom is after excluding the burnin.'>>=
+par(mfrow=c(3,3))
+par(mar=c(2,2,1,1))
+for(i in 1:Kpost){
+  plot(1:niterK, sumbfbd[,i], type='l', main='', col=i+1,xlab='',ylab='',ylim=c(-.2,.4))
+  text(.25*niter, .3, paste('Domain',i))
+  text(.25*niter, .35, expression(beta[f]+b[D]))
+  abline(h=0, col='black')
+} 
+@
+\FloatBarrier
+
+
+
+<<echo=FALSE, results='asis', fig.align='center', fig.height=4, out.width='\\linewidth'>>=
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,c(1:6)],par.name=parnames.betaDFs[c(1:6)], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(1,Kpost))
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,7:12],par.name=parnames.betaDFs[7:12], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(2,Kpost))
+@
+
+<<echo=FALSE, results='asis', fig.align='center', fig.height=4, out.width='\\linewidth'>>=
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,13:18],par.name=parnames.betaDFs[13:18], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(3,Kpost))
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,19:24],par.name=parnames.betaDFs[19:24], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(4,Kpost))
+@
+<<echo=FALSE, results='asis', fig.align='center', fig.height=4, out.width='\\linewidth'>>=
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,c(25:30)],par.name=parnames.betaDFs[c(25:30)], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(5,Kpost))
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,31:36],par.name=parnames.betaDFs[31:36], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(6,Kpost))
+@
+<<echo=FALSE, results='asis', fig.align='center', fig.height=4, out.width='\\linewidth'>>=
+par(mar=c(2,2,1,1))
+parnames.betaDFs <- paste(rep(paste('beta[DF',1:Kpost,']',sep=''),each=6),c('sex','mage','home','kbit','holl','cage'),sep='-')
+plot.params(draws = betaDfdrawsKmat[,37:42],par.name=parnames.betaDFs[37:42], lim.y =c(-.3,.35),plotdims = c(ncol(predictorvars)/2,2), plotcolors = rep(7,Kpost))
+@
+
+\FloatBarrier
+\section{Model Diagnostics Based on Correlations in Posterior Predictive Draws of the Outcomes}
+\subsection{Comparing to the Diagnostics found in Xiao et al. }
+% \begin{center}
+% \includegraphics[scale=.7]{corrPlots}
+% \end{center}
+\FloatBarrier
+<<echo=FALSE, results='asis',fig.align='center', fig.height=8, out.width='\\linewidth'>>=
+postYcorrs2 <- postcorrs(postysMat = clust1$Ypred, outnames = outcomenames, realYs = Y)
+par(mfrow=c(4,2))
+for( j in c(10,14,15,18) ){
+  hist(postYcorrs2$minmaxCorrs[[j]][,'Min. Corr.'],main=paste('Min r: y',j,' ',outcomenames[j],sep=''),xlab = "", xlim = c(min(postYcorrs2$minmaxCorrs[[j]][,'Min. Corr.']),max(as.numeric(postYcorrs2$actualminmax[j,'Min. Corr.'])+.02,max(postYcorrs2$minmaxCorrs[[j]][,'Min. Corr.']))))
+  abline(v=as.numeric(postYcorrs2$actualminmax[j,4]),col='red',lty=2)
+  hist(postYcorrs2$minmaxCorrs[[j]][,'Max. Corr.'],main=paste('Max r: y',j,' ',outcomenames[j],sep=''),xlab = "", xlim = c(min(as.numeric(postYcorrs2$actualminmax[j,'Max. Corr.']),min(postYcorrs2$minmaxCorrs[[j]][,'Max. Corr.'])),max(as.numeric(postYcorrs2$actualminmax[j,'Max. Corr.'])+.02,max(postYcorrs2$minmaxCorrs[[j]][,'Max. Corr.']))))
+  abline(v=as.numeric(postYcorrs2$actualminmax[j,'Max. Corr.']),col='red',lty=2)
+}
+@
+\FloatBarrier
+\subsection{Diagnostics across all outcomes}
+<<echo=FALSE, results='asis',fig.align='center', fig.height=2.1, out.width='\\linewidth'>>=
+#dim(clust1$Ypred)
+for( j in 1:J ){
+  par(mfrow=c(1,2), mar=c(2,2,2,0))
+  hist(postYcorrs2$minmaxCorrs[[j]][,'Min. Corr.'],main=paste('Min r: y',j,' ',outcomenames[j],sep=''),xlab = "", cex.main=.8,cex.axis=.6,ylab='')
+  abline(v=as.numeric(postYcorrs2$actualminmax[j,4]),col='red',lty=2)
+  hist(postYcorrs2$minmaxCorrs[[j]][,'Max. (+) Corr.'],main=paste('Max r: y',j,' ',outcomenames[j],sep=''),xlab = "", cex.main=.8,cex.axis=.6,ylab = '')
+  abline(v=as.numeric(postYcorrs2$actualminmax[j,'Max. (+) Corr.']),col='red',lty=2)
+  # if(j==10) cat('\r\n\r\n')
+}
+@
+
+%' \end{document}
+
+%' <<echo=FALSE, results='asis'>>=
+%' corr.xtab1 <- xtable(mixmaxMat[c(10,14,15,18),],parbox=.5,label="table1", caption="Minimum and maximum observed correlations between selected outcomes and all other outcomes, under the model fit above, as applied to the SCDS data of 20 outcomes presented in Thurston et al. (2009). These values can be compared to the red dashed lines in the plots below to get a \\emph{sense} of the performance of our model.")
+%' align( corr.xtab1 ) <- c( 'l','|l', '|c', 'p{1.2in}','|c', 'p{1.2in}|') #,'|c', 'p{.8in}|' )
+%' print(corr.xtab1, include.rownames=F,sanitize.text.function = function(x) x)
+%' @
+%' 
+%' 
+%' 
+%' <<echo=FALSE, results='asis'>>=
+%' ## Identifying highly correlated outcomes variables:
+%' corr.xtab2 <- xtable(mixmaxMat,parbox=.5,label="table2", caption="Minimum and maximum observed correlations between outcome j and all other outcomes, under the model fit above, as applied to the SCDS data of 20 outcomes presented in Thurston et al. (2009). Note that the highest correlation is seen among the finger tapping outcomes.")
+%' align( corr.xtab2 ) <- c( 'l','|l', '|c', 'p{1.2in}','|c', 'p{1.2in}|') #,'|c', 'p{.8in}|' )
+%' print(corr.xtab2, include.rownames=F,sanitize.text.function = function(x) x)
+%' @
+\end{document}
+

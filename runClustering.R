@@ -5,10 +5,6 @@ source('~/clustMultOutwImpSplitMerge.R')
 dat1 <- read.table('/projects/32885/sey2/Main/9Years/Amy/sasdata/missx.txt')
 
 
-# dat1 <- read.sas7bdat('Z:/sasdata/missx.sas7bdat')
-# Y=Y; Sf=Sf; SDf=SDf; SD=SD; SO=SO; y.jlabs=y.jlabs; y.ilabs=y.ilabs; 
-# priors=prior.new; inits=inits; niter=37; printIter=TRUE; tune=c(100,20);m=6;  printSumms=FALSE; ycorrs=NULL
-
 predictor.varnames <- c('MERC_S','CSEX','MAGE','HOME','KBIT_STD','M8HOLLSC','child_age')
 
 ## Subset further to ensure the ELIGIBLE subjects with complete covariate data have at least two outcomes in each domain,
@@ -67,3 +63,41 @@ clust1 <- cluster.multouts( Y=Y, Sf=Sf, SDf=SDf, SD=SD, SO=SO, y.jlabs=y.jlabs, 
                             m=6,  printSumms=FALSE, ycorrs=NULL)
 
 save(clust1, file='clusteringDraws.Rda')
+
+## Remove burnin draws:
+nburn = 1e3
+d.drawsMinusBurnin <- clust1$d.draws[(nburn + 1):niter,] 
+## Calculate number of groups at each iteration:
+K.draws <- apply(d.drawsMinusBurnin,1,max)
+
+cat('The sampler visited states which had ',paste('d=',unique(K.draws),' ',sep=''),'domains \nafter the ',nburn,'-draw burnin period.',sep='')
+print(table(K.draws))
+
+#### Clustering via least-squares with all draws after the burnin.
+d.drawsNewAllK <- renumber(d.drawsMinusBurnin, Kpost = NULL)
+grpinds <- d.drawsNewAllK$gpindices
+grppatts <- d.drawsNewAllK$gppatterns
+
+S.hat <- 1 - dissMatrix(d.drawsMinusBurnin)
+LSclustresults <- dahlLSclust(d.drawsMinusBurnin, S.hat)
+LSminAll.1 <- which(LSclustresults==min(LSclustresults))[1]
+dom.assnsLS <- d.drawsNewAllK$newds[LSminAll.1,]
+write.table(dom.assnsLS, file = 'final_clust_all.txt')
+
+
+###### ------ Alternatively, find posterior grouping using only draws of Kpost groups ----- #######
+
+Kpost <- as.numeric(names(which.max(table(K.draws))))
+Krows7 <- which(K.draws==Kpost)
+
+#### Clustering via least-squares does not require an estimate of K-posterior 
+###   and we can incorporate all draws after the burnin.
+d.drawsNewAllK7 <- renumber(d.drawsMinusBurnin[Krows7,], Kpost = Kpost)
+grpinds <- d.drawsNewAllK7$gpindices
+grppatts <- d.drawsNewAllK7$gppatterns
+
+S.hat <- 1 - dissMatrix(d.drawsMinusBurnin[Krows7,])
+LSclustresults <- dahlLSclust(d.drawsMinusBurnin[Krows7,], S.hat)
+LSmin7 <- which(LSclustresults==min(LSclustresults))[1]
+dom.assnsLS.7 <- d.drawsNewAllK7$newds[LSmin7,]
+write.table(dom.assnsLS.7, file = 'final_clust_Kpost.txt')
